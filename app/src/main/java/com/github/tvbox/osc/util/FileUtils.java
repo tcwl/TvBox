@@ -294,42 +294,49 @@ public class FileUtils {
     }
     
     public static void cleanPlayerCache() {
-        String thunderCachePath = getCachePath() + "/thunder/";
-        File thunderCacheDir = new File(thunderCachePath);
-        try {
-            if (thunderCacheDir.exists()) recursiveDelete(thunderCacheDir);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        String ijkCachePath = getExternalCachePath() + "/ijkcaches/";
-        File ijkCacheDir = new File(ijkCachePath);
-        try {
-            if (ijkCacheDir.exists()) recursiveDelete(ijkCacheDir);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        String jpaliCachePath = getExternalCachePath() + "/jpali/Downloads/";
-        File jpaliCacheDir = new File(jpaliCachePath);
-        try {
-            if (jpaliCacheDir.exists()) recursiveDelete(jpaliCacheDir);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        recursiveDelete(new File(getCachePath() + File.separator + "thunder"));
+        recursiveDelete(new File(getExternalCachePath() + File.separator + "ijkcaches"));
+        recursiveDelete(new File(getExternalCachePath() + File.separator + "jpali" + File.separator + "Downloads"));
     }
 
-    public static String getFileNameWithoutExt(String filePath){
-        if(TextUtils.isEmpty(filePath)) return "";
+    public static String getFileName(String filePath) {
+        if (TextUtils.isEmpty(filePath)) return "";
         String fileName = filePath;
         int p = fileName.lastIndexOf(File.separatorChar);
-        if(p != -1){
+        if (p != -1) {
+            fileName = fileName.substring(p + 1);
+        }
+        return fileName;
+    }
+
+    public static String getFileNameWithoutExt(String filePath) {
+        if (TextUtils.isEmpty(filePath)) return "";
+        String fileName = filePath;
+        int p = fileName.lastIndexOf(File.separatorChar);
+        if (p != -1) {
             fileName = fileName.substring(p + 1);
         }
         p = fileName.indexOf('.');
-        if(p != -1){
+        if (p != -1) {
             fileName = fileName.substring(0, p);
         }
         return fileName;
+    }
+
+    public static String getFileExt(String fileName) {
+        if (TextUtils.isEmpty(fileName)) return "";
+        int p = fileName.lastIndexOf('.');
+        if (p != -1) {
+            return fileName.substring(p)
+                .toLowerCase();
+        }
+        return "";
+    }
+
+    public static boolean hasExtension(String path) {
+        int lastDotIndex = path.lastIndexOf(".");
+        int lastSlashIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+        // 如果路径中有点号，并且点号在最后一个斜杠之后，认为有后缀
+        return lastDotIndex > lastSlashIndex && lastDotIndex < path.length() - 1;
     }
 }
