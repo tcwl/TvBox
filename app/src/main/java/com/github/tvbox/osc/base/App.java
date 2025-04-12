@@ -1,7 +1,15 @@
 package com.github.tvbox.osc.base;
 
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+
+import androidx.core.os.HandlerCompat;
 import androidx.multidex.MultiDexApplication;
+
+import com.github.catvod.crawler.JarLoader;
 import com.github.catvod.crawler.JsLoader;
+import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.callback.EmptyCallback;
 import com.github.tvbox.osc.callback.LoadingCallback;
 import com.github.tvbox.osc.data.AppDataManager;
@@ -13,11 +21,21 @@ import com.github.tvbox.osc.util.LocaleHelper;
 import com.github.tvbox.osc.util.LOG;
 import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.PlayerHelper;
+import com.github.tvbox.osc.util.SubtitleHelper;
+import com.hjq.permissions.XXPermissions;
 import com.kingja.loadsir.core.LoadSir;
 import com.orhanobut.hawk.Hawk;
 import com.p2p.P2PClass;
 import com.whl.quickjs.android.QuickJSLoader;
+import com.yanzhenjie.andserver.AndServer;
+import com.yanzhenjie.andserver.Server;
+
 import java.io.File;
+import java.util.concurrent.TimeUnit;
+
+import io.github.inflationx.calligraphy3.CalligraphyConfig;
+import io.github.inflationx.calligraphy3.CalligraphyInterceptor;
+import io.github.inflationx.viewpump.ViewPump;
 import me.jessyan.autosize.AutoSizeConfig;
 import me.jessyan.autosize.unit.Subunits;
 
@@ -31,16 +49,26 @@ public class App extends MultiDexApplication {
     private static P2PClass p;
     public static String burl;
     private static String dashData;
-    
+    public static ViewPump viewPump = null;
+    private static Server server = null;
+    private final Handler handler;
+
+    public App() {
+        instance = this;
+        handler = HandlerCompat.createAsync(Looper.getMainLooper());
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
-        instance = this;
+        SubtitleHelper.initSubtitleColor(this);
         initParams();
         // takagen99 : Initialize Locale
         initLocale();
         // OKGo
         OkGoHelper.init();
+        // 闭关检查模式
+        XXPermissions.setCheckMode(false);
         // Get EPG Info
         EpgUtil.init();
         // 初始化Web服务器
@@ -67,12 +95,25 @@ public class App extends MultiDexApplication {
 
         // Add JS support
         QuickJSLoader.init();
+
+        // add font support, my tv embed font not include emoji
+        String extStorageDir = Environment.getExternalStorageDirectory().getAbsolutePath();
+        File fontFile = new File(extStorageDir + "/tvbox.ttf");
+        if (fontFile.exists()) {
+            viewPump = ViewPump.builder()
+                    .addInterceptor(new CalligraphyInterceptor(
+                            new CalligraphyConfig.Builder()
+                                    .setDefaultFontPath(fontFile.getAbsolutePath())
+                                    .setFontAttrId(R.attr.fontPath)
+                                    .build()))
+                    .build();
+        }
     }
 
     public static P2PClass getp2p() {
         try {
             if (p == null) {
-                p = new P2PClass(instance.getExternalCacheDir().getAbsolutePath());
+                p = new P2PClass(FileUtils.getExternalCachePath());
             }
             return p;
         } catch (Exception e) {
@@ -135,7 +176,42 @@ public class App extends MultiDexApplication {
     public void setDashData(String data) {
         dashData = data;
     }
+
     public String getDashData() {
         return dashData;
+    }
+
+    public static void startWebserver() {
+        if (server != null) return;
+        server = AndServer
+                .webServer(instance)
+                .port(12345)
+                .timeout(60, TimeUnit.SECONDS)
+                .listener(new Server.ServerListener() {
+                    @Override
+                    public void onStarted() {
+
+                    }
+
+                    @Override
+                    public void onStopped() {
+
+                    }
+
+                    @Override
+                    public void onException(Exception e) {
+
+                    }
+                }).build();
+        server.startup();
+    }
+
+    public static void post(Runnable runnable) {
+        getInstance().handler.post(runnable);
+    }
+
+    public static void post(Runnable runnable, long delayMillis) {
+        getInstance().handler.removeCallbacks(runnable);
+        if (delayMillis >= 0) getInstance().handler.postDelayed(runnable, delayMillis);
     }
 }

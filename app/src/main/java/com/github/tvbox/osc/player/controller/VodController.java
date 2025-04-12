@@ -52,6 +52,7 @@ import com.github.tvbox.osc.util.SubtitleHelper;
 import com.orhanobut.hawk.Hawk;
 import com.owen.tvrecyclerview.widget.TvRecyclerView;
 import com.owen.tvrecyclerview.widget.V7LinearLayoutManager;
+
 import org.greenrobot.eventbus.EventBus;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
@@ -137,8 +138,9 @@ public class VodController extends BaseController {
 
                         // takagen99: Check if Touch Screen, show back button
                         if (((BaseActivity) mActivity).supportsTouch()) {
-                            mBack.setVisibility(VISIBLE);               
+                            mBack.setVisibility(VISIBLE);
                         }
+                        updateDanmuBtn();
                         showLockView();
 
                         if (isKeyUp) {
@@ -207,7 +209,9 @@ public class VodController extends BaseController {
                                         mBottomRoot.clearAnimation();
                                     }
                                 });
+                        mDanmuSetting.setVisibility(GONE);
                         mBack.setVisibility(GONE);
+                        mLockView.setVisibility(GONE);
                         break;
                     }
                     case 1004: { // 设置速度
@@ -236,7 +240,7 @@ public class VodController extends BaseController {
     LinearLayout mSpeedll;
 
     // pause container
-    public static FrameLayout mProgressTop;
+    public FrameLayout mProgressTop;
     ImageView mPauseIcon;
     LinearLayout mTapSeek;
 
@@ -249,12 +253,16 @@ public class VodController extends BaseController {
 
     // center BACK button
     LinearLayout mBack;
-    
+
+    LinearLayout mDanmuSetting;
+
+    private boolean hasDanmu = false;
+
     //center LOCK button    
     private boolean isLock = false;
     ImageView mLockView;
     LockRunnable lockRunnable = new LockRunnable();
-    
+
     // screen_display
     TextView mPlayPauseTime;
     TextView mPlayLoadNetSpeedRightTop;
@@ -316,8 +324,6 @@ public class VodController extends BaseController {
             Date date = new Date();
             SimpleDateFormat timeFormat = new SimpleDateFormat("hh:mm aa", Locale.ENGLISH);
             mPlayPauseTime.setText(timeFormat.format(date));
-            String speed = PlayerHelper.getDisplaySpeed(mControlWrapper.getTcpSpeed());
-            mPlayLoadNetSpeedRightTop.setText(speed);
             mTime.setText(timeFormat.format(date));
             mHandler.postDelayed(this, 1000);
         }
@@ -329,7 +335,7 @@ public class VodController extends BaseController {
             mBottomRoot.requestLayout();
         }
     };
-    
+
     private void showLockView() {
         mLockView.setVisibility(ScreenUtils.isTv(getContext()) ? INVISIBLE : VISIBLE);
         mHandler.removeCallbacks(lockRunnable);
@@ -368,7 +374,8 @@ public class VodController extends BaseController {
 
         // center back button
         mBack = findViewById(R.id.tvBackButton);
-        
+        mDanmuSetting = findViewById(R.id.ll_danmu_setting);
+
         // center lock button
         mLockView = findViewById(R.id.tv_lock);
 
@@ -421,17 +428,18 @@ public class VodController extends BaseController {
         mTopRoot.setVisibility(INVISIBLE);
         mBottomRoot.setVisibility(INVISIBLE);
         mBack.setVisibility(INVISIBLE);
+        mDanmuSetting.setVisibility(INVISIBLE);
 
         // initialize subtitle
         initSubtitleInfo();
-        
+
         // screen_display
         mPlayPauseTime = findViewById(R.id.tv_system_time);
         mPlayLoadNetSpeedRightTop = findViewById(R.id.tv_play_load_net_speed_right_top);
         mTopRoot2 = findViewById(R.id.tv_top_r_container);
         seekTime = findViewById(R.id.tv_seek_time); //右上角进度时间显示
         mScreendisplay = findViewById(R.id.screen_display); //增加屏显开关
-        
+
         mLockView.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -445,20 +453,26 @@ public class VodController extends BaseController {
                 showLockView();
             }
         });
-        
+
         View rootView = findViewById(R.id.rootView);
-        rootView.setOnTouchListener(new OnTouchListener() {@Override
+        rootView.setOnTouchListener(new OnTouchListener() {
+            @Override
             public boolean onTouch(View v, MotionEvent event) {
                 if (isLock) {
                     if (event.getAction() == MotionEvent.ACTION_UP) {
-                        showLockView();
+                        if (mLockView.getVisibility() == View.VISIBLE) {
+                            mLockView.setVisibility(GONE);
+                        } else {
+                            showLockView();
+                        }
                     }
                 }
                 return isLock;
             }
         });
-        
-        mPlayPauseTime.post(new Runnable() {@Override
+
+        mPlayPauseTime.post(new Runnable() {
+            @Override
             public void run() {
                 mHandler.post(mTimeRunnable);
             }
@@ -707,7 +721,7 @@ public class VodController extends BaseController {
                     }
                     SelectDialog<Integer> dialog = new SelectDialog<>(mActivity);
                     dialog.setTip(HomeActivity.getRes().getString(R.string.dia_player));
-                    dialog.setAdapter(new SelectDialogAdapter.SelectDialogInterface<Integer>() {
+                    dialog.setAdapter(null, new SelectDialogAdapter.SelectDialogInterface<Integer>() {
                         @Override
                         public void click(Integer value, int pos) {
                             try {
@@ -782,15 +796,22 @@ public class VodController extends BaseController {
         mSubtitleBtn.setOnLongClickListener(new OnLongClickListener() {
             @Override
             public boolean onLongClick(View view) {
-                mSubtitleView.setVisibility(View.GONE);
-                mSubtitleView.destroy();
-                mSubtitleView.clearSubtitleCache();
-                mSubtitleView.isInternal = false;
-                hideBottom();
-                Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.vod_sub_off), Toast.LENGTH_SHORT).show();
+                if (mSubtitleView.getVisibility() == View.GONE) {
+                    mSubtitleView.setVisibility(VISIBLE);
+                    hideBottom();
+                    Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.vod_sub_on), Toast.LENGTH_SHORT).show();
+                } else {
+                    mSubtitleView.setVisibility(View.GONE);
+                    // mSubtitleView.destroy();
+                    // mSubtitleView.clearSubtitleCache();
+                    // mSubtitleView.isInternal = false;
+                    hideBottom();
+                    Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.vod_sub_off), Toast.LENGTH_SHORT).show();
+                }
                 return true;
             }
         });
+
         // Button : AUDIO track selection --------------------------------------
         mAudioTrackBtn.setOnClickListener(new OnClickListener() {
             @Override
@@ -798,9 +819,10 @@ public class VodController extends BaseController {
                 FastClickCheckUtil.check(view);
                 listener.selectAudioTrack();
             }
-        });        
+        });
         //        增加播放页面片头片尾时间重置
-        mPlayerTimeResetBtn.setOnClickListener(new OnClickListener() {@Override
+        mPlayerTimeResetBtn.setOnClickListener(new OnClickListener() {
+            @Override
             public void onClick(View v) {
                 mHandler.removeCallbacks(mHideBottomRunnable);
                 mHandler.postDelayed(mHideBottomRunnable, 8000);
@@ -814,7 +836,8 @@ public class VodController extends BaseController {
                 }
             }
         });
-        mPlayerTimeResetBtn.setOnLongClickListener(new OnLongClickListener() {@Override
+        mPlayerTimeResetBtn.setOnLongClickListener(new OnLongClickListener() {
+            @Override
             public boolean onLongClick(View view) {
                 try {
                     mPlayerConfig.put("st", 110);
@@ -947,30 +970,45 @@ public class VodController extends BaseController {
                     mTopRoot.setVisibility(GONE);
                     mBottomRoot.setVisibility(GONE);
                     mBack.setVisibility(GONE);
+                    mLockView.setVisibility(GONE);
                     mProgressTop.setVisibility(GONE);
+                    mDanmuSetting.setVisibility(GONE);
                     mHandler.removeCallbacks(mHideBottomRunnable);
-                    ((DetailActivity) mActivity).toggleFullPreview();
+                    if (mActivity != null) {
+                        if (mActivity.getClass().getSimpleName().equals("DetailActivity")) {
+                            ((DetailActivity) mActivity).toggleFullPreview();
+                        } else {
+                            mActivity.finish();
+                        }
+                    }
                 } else {
-                    mActivity.finish();
+                    if (mActivity != null) {
+                        mActivity.finish();
+                    }
                 }
             }
         });
-        
+
         //屏显开关
         mTopRoot2.setVisibility(Hawk.get(HawkConfig.SCREEN_DISPLAY, GONE));
-        mScreendisplay.setOnClickListener(new OnClickListener() {@Override
+        mScreendisplay.setOnClickListener(new OnClickListener() {
+            @Override
             public void onClick(View view) {
                 mTopRoot2.setVisibility(mTopRoot2.getVisibility() == VISIBLE ? GONE : VISIBLE);
-                Hawk.put(HawkConfig.SCREEN_DISPLAY, mTopRoot2.getVisibility());              
+                Hawk.put(HawkConfig.SCREEN_DISPLAY, mTopRoot2.getVisibility());
                 hideBottom();
                 //Toast.makeText(getContext(), "点击显示网速 播放进度 时间", Toast.LENGTH_SHORT).show();
             }
         });
-        
+
+        mDanmuSetting.setOnClickListener(view -> {
+            listener.showDanmuSetting();
+        });
+
     }
-    
+
     public void initLandscapePortraitBtnInfo() {
-        if(mControlWrapper!=null){
+        if (mControlWrapper != null) {
             int width = mControlWrapper.getVideoSize()[0];
             int height = mControlWrapper.getVideoSize()[1];
             if (width < height) {
@@ -979,7 +1017,7 @@ public class VodController extends BaseController {
             }
         }
     }
-    
+
     void setLandscapePortrait() {
         int requestedOrientation = mActivity.getRequestedOrientation();
         if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE || requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE || requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE) {
@@ -994,6 +1032,7 @@ public class VodController extends BaseController {
     void initSubtitleInfo() {
         int subtitleTextSize = SubtitleHelper.getTextSize(mActivity);
         mSubtitleView.setTextSize(subtitleTextSize);
+        SubtitleHelper.upTextStyle(mSubtitleView);
     }
 
     @Override
@@ -1021,7 +1060,7 @@ public class VodController extends BaseController {
 
     void updatePlayerCfgView() {
         try {
-            int playerType = mPlayerConfig.getInt("pl");            
+            int playerType = mPlayerConfig.getInt("pl");
             mPlayerTxt.setText(PlayerHelper.getPlayerName(playerType));
             mPlayerScaleTxt.setText(PlayerHelper.getScaleName(mPlayerConfig.getInt("sc")));
             mPlayerIJKBtn.setText(mPlayerConfig.getString("ijk"));
@@ -1067,6 +1106,8 @@ public class VodController extends BaseController {
         void selectAudioTrack();
 
         void openVideo();
+
+        void showDanmuSetting();
 
     }
 
@@ -1130,6 +1171,7 @@ public class VodController extends BaseController {
     private int simSeekPosition = 0;
     private long simSlideOffset = 0;
     private int tapDirection;
+    private long lastSlideTime = 0;
 
     public void tvSlideStop() {
         if (!simSlideStart)
@@ -1146,13 +1188,25 @@ public class VodController extends BaseController {
         int duration = (int) mControlWrapper.getDuration();
         if (duration <= 0)
             return;
+
+        long currentTime = System.currentTimeMillis();
+        final int baseSkip = 10000; // 基础跳转10秒
+        final float accelerationFactor = 1.5f; // 连续操作时的加速因子
+        final long threshold = 500; // 操作间隔阈值500ms
+
         if (!simSlideStart) {
             simSlideStart = true;
+            simSlideOffset = (long) baseSkip * dir;
+        } else {
+            if (currentTime - lastSlideTime <= threshold) {
+                simSlideOffset += (baseSkip * accelerationFactor * dir);
+            } else {
+                simSlideOffset = (long) baseSkip * dir;
+            }
         }
-        // 每次10秒
-        simSlideOffset += (10000.0f * dir);
+        lastSlideTime = currentTime;
         int currentPosition = (int) mControlWrapper.getCurrentPosition();
-        int position = (int) (simSlideOffset + currentPosition);
+        int position = (int) (currentPosition + simSlideOffset);
         if (position > duration) position = duration;
         if (position < 0) position = 0;
         updateSeekUI(currentPosition, position, duration);
@@ -1554,10 +1608,11 @@ public class VodController extends BaseController {
             anim.start();
         }
     }
-    
-    private class LockRunnable implements Runnable {@Override
+
+    private class LockRunnable implements Runnable {
+        @Override
         public void run() {
-            mLockView.setVisibility(INVISIBLE);
+            mLockView.setVisibility(GONE);
         }
     }
 
@@ -1575,5 +1630,17 @@ public class VodController extends BaseController {
             mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         }
         return false;
+    }
+
+    public void updateDanmuBtn(){
+        if(hasDanmu){
+            mDanmuSetting.setVisibility(VISIBLE);
+        }else{
+            mDanmuSetting.setVisibility(GONE);
+        }
+    }
+
+    public void setHasDanmu(boolean hasDanmu){
+        this.hasDanmu = hasDanmu;
     }
 }

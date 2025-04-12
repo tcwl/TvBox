@@ -1,7 +1,10 @@
 package com.github.tvbox.osc.util;
 
+import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Base64;
+
+import com.github.catvod.utils.Path;
 import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.util.StringUtils;
@@ -23,6 +26,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -32,7 +36,7 @@ import okhttp3.Response;
 public class FileUtils {
 
     public static File open(String str) {
-        return new File(App.getInstance().getExternalCacheDir().getAbsolutePath() + "/qjscache_" + str + ".js");
+        return new File(getExternalCachePath() + "/qjscache_" + str + ".js");
     }
 
     public static boolean writeSimple(byte[] data, File dst) {
@@ -62,7 +66,7 @@ public class FileUtils {
         }
         return null;
     }
-    
+
     public static String readFileToString(String path, String charsetName) {
         // 定义返回结果
         StringBuilder jsonString = new StringBuilder();
@@ -104,7 +108,10 @@ public class FileUtils {
             os.close();
         }
     }
-
+    public static String getRootPath() {
+        return Environment.getExternalStorageDirectory()
+            .getAbsolutePath();
+    }
     public static void recursiveDelete(File file) {
         try {
             if (!file.exists())
@@ -121,11 +128,11 @@ public class FileUtils {
     }
 
     public static String loadModule(String name) {
-        try {        	
+        try {
             if (name.contains("gbk.js")) {
                 name = "gbk.js";
             } else if (name.contains("模板.js")) {
-                name = "模板.js";            
+                name = "模板.js";
             } else if (name.contains("cat.js")) {
                 name = "cat.js";
             }
@@ -212,7 +219,7 @@ public class FileUtils {
             return "";
         }
     }
-    
+
     public static byte[] getCacheByte(String name) {
         try {
             File file = open("B_" + name);
@@ -235,7 +242,7 @@ public class FileUtils {
             e.printStackTrace();
         }
     }
-    
+
     public static void setCacheByte(String name, byte[] data) {
         try {
             writeSimple(byteMerger("//DRPY".getBytes(),Base64.encode(data, Base64.URL_SAFE)), open("B_" + name));
@@ -243,19 +250,19 @@ public class FileUtils {
             e.printStackTrace();
         }
     }
-    
+
     public static byte[] byteMerger(byte[] bt1, byte[] bt2){
         byte[] bt3 = new byte[bt1.length+bt2.length];
         System.arraycopy(bt1, 0, bt3, 0, bt1.length);
         System.arraycopy(bt2, 0, bt3, bt1.length, bt2.length);
         return bt3;
     }
-    
+
     public static String get(String str) {
         return get(str, null);
     }
 
-    public static String get(String str, Map<String, String> headerMap) {    
+    public static String get(String str, Map<String, String> headerMap) {
         try {
             HttpHeaders h = new HttpHeaders();
             Response response = null;
@@ -276,8 +283,8 @@ public class FileUtils {
             return "";
         }
     }
-    
-    private static final Pattern URLJOIN = Pattern.compile("^http.*\\.(js|txt|json|m3u)$", Pattern.MULTILINE | Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern URLJOIN = Pattern.compile("^http.*\\.(js|txt|json|m3u)", Pattern.MULTILINE | Pattern.CASE_INSENSITIVE);
 
     public static File getCacheDir() {
         return App.getInstance().getCacheDir();
@@ -286,13 +293,18 @@ public class FileUtils {
         return App.getInstance().getExternalCacheDir();
     }
     public static String getExternalCachePath() {
-        return getExternalCacheDir().getAbsolutePath();
+        //部分机器getExternalCacheDir()会返回空
+        File externalCacheDir = getExternalCacheDir();
+        if (externalCacheDir == null){
+            return getCachePath();
+        }
+        return externalCacheDir.getAbsolutePath();
     }
 
     public static String getCachePath() {
         return getCacheDir().getAbsolutePath();
     }
-    
+
     public static void cleanPlayerCache() {
         recursiveDelete(new File(getCachePath() + File.separator + "thunder"));
         recursiveDelete(new File(getExternalCachePath() + File.separator + "ijkcaches"));
@@ -338,5 +350,58 @@ public class FileUtils {
         int lastSlashIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
         // 如果路径中有点号，并且点号在最后一个斜杠之后，认为有后缀
         return lastDotIndex > lastSlashIndex && lastDotIndex < path.length() - 1;
+    }
+
+    public static String read(String path) {
+        try {
+            return read(new FileInputStream(getLocal(path)));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static String read(InputStream is) {
+        try {
+            byte[] data = new byte[is.available()];
+            is.read(data);
+            is.close();
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+    public static File getLocal(String path) {
+        File file1 = new File(path.replace("file:/", ""));
+        File file2 = new File(path.replace("file:/", Environment.getExternalStorageDirectory().getAbsolutePath()));
+        return file2.exists() ? file2 : file1.exists() ? file1 : new File(path);
+    }
+    public static void deleteFile(File file) {
+        if (!file.exists()) return;
+        if (file.isFile()) {
+            if (file.canWrite()) file.delete();
+            return;
+        }
+        if (file.isDirectory()) {
+            File[] files = file.listFiles();
+            if (files == null || files.length == 0) {
+                if (file.canWrite()) file.delete();
+                return;
+            }
+            for(File one : files) {
+                deleteFile(one);
+            }
+        }
+        return;
+    }
+
+    public static String getFilePath() {
+        return App.getInstance().getFilesDir().getAbsolutePath();
+    }
+
+    public static boolean isWeekAgo(File file) {
+        long oneWeekMillis = 15L * 24 * 60 * 60 * 1000;
+        long timeDiff = System.currentTimeMillis() - file.lastModified();
+        return timeDiff > oneWeekMillis;
     }
 }
